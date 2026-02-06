@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Medical Visual Question Answering - AI-powered medical image analysis">
+    <title>Medical VQA | AI-Powered Medical Image Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                        <path d="M16 8v16M8 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">Medical VQA</span>
+            </div>
+            <nav class="nav">
+                <a href="#upload" class="nav-link active">Analyze</a>
+                <a href="#about" class="nav-link">About</a>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">
+                <span class="gradient-text">AI-Powered</span> Medical Image Analysis
+            </h1>
+            <p class="hero-subtitle">
+                Upload medical images and ask questions. Get instant, explainable answers powered by advanced AI.
+            </p>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main-content" id="upload">
+        <div class="container">
+            <div class="app-grid">
+                <!-- Upload Section -->
+                <section class="upload-section glass-card">
+                    <h2 class="section-title">
+                        <span class="section-icon">📤</span>
+                        Upload Image
+                    </h2>
+                    
+                    <div class="upload-zone" id="uploadZone">
+                        <input type="file" id="imageInput" accept="image/*,.dcm" hidden>
+                        <div class="upload-content">
+                            <div class="upload-icon">🏥</div>
+                            <p class="upload-text">Drop medical image here</p>
+                            <p class="upload-hint">or click to browse</p>
+                            <span class="upload-formats">Supports: JPEG, PNG, DICOM</span>
+                        </div>
+                    </div>
+                    
+                    <div class="image-preview" id="imagePreview" hidden>
+                        <img id="previewImg" alt="Uploaded medical image">
+                        <button class="remove-btn" id="removeImage" aria-label="Remove image">×</button>
+                    </div>
+                </section>
+
+                <!-- Question Section -->
+                <section class="question-section glass-card">
+                    <h2 class="section-title">
+                        <span class="section-icon">❓</span>
+                        Ask Question
+                    </h2>
+                    
+                    <div class="question-input-wrapper">
+                        <textarea 
+                            id="questionInput" 
+                            class="question-input" 
+                            placeholder="Ask a question about the medical image..."
+                            rows="3"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button class="btn btn-primary" id="submitBtn" disabled>
+                                <span class="btn-text">Analyze</span>
+                                <span class="btn-loader" hidden></span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="sample-questions">
+                        <p class="sample-label">Try a sample question:</p>
+                        <div class="sample-chips">
+                            <button class="chip" data-question="What type of imaging is this?">Type of imaging</button>
+                            <button class="chip" data-question="Are there any abnormalities visible?">Abnormalities</button>
+                            <button class="chip" data-question="What is the likely diagnosis?">Diagnosis</button>
+                            <button class="chip" data-question="Which organs are visible?">Organs visible</button>
+                        </div>
+                    </div>
+                    
+                    <div class="options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showExplanation" checked>
+                            <span class="checkmark"></span>
+                            Generate explanation
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="showHeatmap" checked>
+                            <span class="checkmark"></span>
+                            Show attention heatmap
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Results Section -->
+                <section class="results-section glass-card" id="resultsSection" hidden>
+                    <h2 class="section-title">
+                        <span class="section-icon">💡</span>
+                        Analysis Results
+                    </h2>
+                    
+                    <div class="results-content">
+                        <!-- Answer -->
+                        <div class="result-block answer-block">
+                            <h3 class="result-label">Answer</h3>
+                            <p class="result-text" id="answerText"></p>
+                        </div>
+                        
+                        <!-- Explanation -->
+                        <div class="result-block explanation-block" id="explanationBlock" hidden>
+                            <h3 class="result-label">Explanation</h3>
+                            <p class="result-text" id="explanationText"></p>
+                        </div>
+                        
+                        <!-- Heatmap -->
+                        <div class="result-block heatmap-block" id="heatmapBlock" hidden>
+                            <h3 class="result-label">Attention Heatmap</h3>
+                            <div class="heatmap-container">
+                                <img id="heatmapImg" alt="Attention heatmap showing important regions">
+                            </div>
+                            <p class="heatmap-hint">Highlighted regions indicate areas the AI focused on</p>
+                        </div>
+                        
+                        <!-- Metadata -->
+                        <div class="result-meta">
+                            <span class="meta-item" id="processingTime"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-secondary" id="newQuestionBtn">Ask Another Question</button>
+                        <button class="btn btn-outline" id="downloadReportBtn">Download Report</button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- About Section -->
+    <section class="about-section" id="about">
+        <div class="container">
+            <h2 class="about-title">About Medical VQA</h2>
+            <div class="about-grid">
+                <div class="about-card">
+                    <div class="about-icon">🧠</div>
+                    <h3>Advanced AI</h3>
+                    <p>Powered by Qwen2-VL with medical knowledge integration for accurate analysis.</p>
+                </div>
+                <div class="about-card">
+                    <div class="about-icon">🔬</div>
+                    <h3>Explainable</h3>
+                    <p>Attention heatmaps and textual rationales explain the AI's reasoning.</p>
+                </div>
+                <div class="about-card">
+                    <div class="about-icon">🏥</div>
+                    <h3>Medical Focus</h3>
+                    <p>Trained on medical VQA datasets for domain-specific understanding.</p>
+                </div>
+                <div class="about-card">
+                    <div class="about-icon">🔒</div>
+                    <h3>Privacy First</h3>
+                    <p>Images are processed locally. No data is stored permanently.</p>
+                </div>
+            </div>
+            
+            <div class="disclaimer">
+                <p><strong>⚠️ Disclaimer:</strong> This tool is for educational and research purposes only. 
+                It should not be used for clinical diagnosis. Always consult qualified medical professionals.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>Medical VQA &copy; 2024 | Knowledge-Guided Explainable Transformer</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" hidden>
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Analyzing image...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

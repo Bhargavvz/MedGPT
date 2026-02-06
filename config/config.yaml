@@ -1,0 +1,243 @@
+# ============================================================================
+# Medical VQA Configuration
+# Knowledge-Guided Explainable Transformer
+# ============================================================================
+
+# Model Configuration
+model:
+  # Base Vision-Language Model
+  base_model: "Qwen/Qwen2-VL-7B-Instruct"
+  vision_encoder: "openai/clip-vit-large-patch14"
+  
+  # Knowledge Encoder
+  knowledge_encoder: "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
+  
+  # Model dimensions
+  hidden_size: 4096
+  vision_hidden_size: 1024
+  knowledge_hidden_size: 768
+  fusion_hidden_size: 1024
+  num_attention_heads: 16
+  
+  # Fusion settings
+  fusion_type: "cross_attention"  # Options: cross_attention, concat, gated
+  num_fusion_layers: 2
+  
+  # Knowledge gating
+  use_knowledge_gating: true
+  gating_temperature: 1.0
+  
+  # Explanation head
+  generate_rationale: true
+  max_rationale_length: 128
+
+# LoRA Configuration  
+lora:
+  enabled: true
+  r: 64
+  lora_alpha: 128
+  lora_dropout: 0.1
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Quantization (QLoRA)
+quantization:
+  enabled: true
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+
+# Training Configuration
+training:
+  # Basic settings
+  output_dir: "./checkpoints"
+  num_epochs: 15
+  batch_size: 16
+  gradient_accumulation_steps: 4
+  effective_batch_size: 64  # batch_size * gradient_accumulation_steps
+  
+  # Optimizer
+  optimizer: "adamw"
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  max_grad_norm: 1.0
+  
+  # Scheduler
+  scheduler: "cosine"
+  warmup_ratio: 0.1
+  min_lr_ratio: 0.1
+  
+  # Mixed Precision
+  fp16: true
+  bf16: false
+  
+  # Efficiency
+  gradient_checkpointing: true
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+  
+  # Vision encoder freezing
+  freeze_vision_encoder: true
+  unfreeze_vision_epoch: 3
+  
+  # Checkpointing
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 3
+  
+  # Logging
+  logging_steps: 10
+  logging_dir: "./logs"
+  report_to: ["tensorboard"]
+  
+  # Evaluation
+  eval_strategy: "steps"
+  eval_steps: 500
+  
+  # Resume
+  resume_from_checkpoint: null
+
+# Loss weights
+loss:
+  answer_loss_weight: 1.0
+  attention_alignment_weight: 0.1
+  knowledge_grounding_weight: 0.2
+  rationale_generation_weight: 0.3
+
+# Data Configuration
+data:
+  # Dataset paths
+  train_file: "./data/processed/train.json"
+  val_file: "./data/processed/val.json"
+  test_file: "./data/processed/test.json"
+  
+  # Raw data directories
+  raw_data_dir: "./data/raw"
+  processed_data_dir: "./data/processed"
+  
+  # Image settings
+  image_size: 224
+  image_mean: [0.485, 0.456, 0.406]
+  image_std: [0.229, 0.224, 0.225]
+  
+  # Text settings
+  max_question_length: 128
+  max_answer_length: 256
+  max_knowledge_length: 256
+  
+  # Data splits
+  train_split: 0.70
+  val_split: 0.15
+  test_split: 0.15
+  
+  # Augmentation
+  use_augmentation: true
+  augmentation:
+    horizontal_flip_prob: 0.5
+    rotation_limit: 15
+    brightness_limit: 0.2
+    contrast_limit: 0.2
+    gaussian_noise_var_limit: [10, 50]
+
+# Knowledge Configuration
+knowledge:
+  # UMLS settings
+  umls_api_key: null  # Set via environment variable UMLS_API_KEY
+  
+  # Entity extraction
+  use_scispacy: true
+  scispacy_model: "en_core_sci_lg"
+  
+  # Retrieval settings
+  top_k_concepts: 5
+  max_definition_length: 100
+  
+  # Knowledge sources
+  sources:
+    - "UMLS"
+    - "RadLex"
+    - "SNOMED-CT"
+
+# Explainability Configuration
+explainability:
+  # Grad-CAM
+  grad_cam:
+    enabled: true
+    target_layer: "vision_encoder.encoder.layers[-1]"
+    
+  # Attention rollout
+  attention_rollout:
+    enabled: true
+    head_fusion: "mean"  # Options: mean, max, min
+    discard_ratio: 0.9
+    
+  # Integrated gradients
+  integrated_gradients:
+    enabled: true
+    n_steps: 50
+    internal_batch_size: 16
+    
+  # Rationale generation
+  rationale:
+    enabled: true
+    max_length: 128
+    temperature: 0.7
+    top_p: 0.9
+
+# Inference Configuration
+inference:
+  model_path: "./checkpoints/best_model"
+  device: "cuda"
+  batch_size: 1
+  max_new_tokens: 256
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: false
+  
+  # Generate explanations
+  generate_heatmap: true
+  generate_rationale: true
+
+# Web Application Configuration
+webapp:
+  host: "0.0.0.0"
+  port: 8000
+  max_upload_size_mb: 50
+  allowed_extensions:
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".dcm"
+  cors_origins:
+    - "*"
+  
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "bleu"
+    - "rouge_l"
+    - "f1"
+    - "exact_match"
+  
+  # Human evaluation
+  human_eval:
+    enabled: false
+    num_samples: 100
+
+# DeepSpeed Configuration
+deepspeed:
+  enabled: true
+  config_file: "./training/deepspeed_config.json"

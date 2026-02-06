@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  medical-vqa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: medical-vqa:latest
+    container_name: medical-vqa
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+      - ./logs:/app/logs
+    environment:
+      - MODEL_PATH=/app/checkpoints/best_model
+      - DEVICE=cuda
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Gradio demo service
+  gradio-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: medical-vqa:latest
+    container_name: medical-vqa-gradio
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./checkpoints:/app/checkpoints
+    environment:
+      - MODEL_PATH=/app/checkpoints/best_model
+      - DEVICE=cuda
+    command: [ "python", "webapp/gradio_app.py" ]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    profiles:
+      - demo

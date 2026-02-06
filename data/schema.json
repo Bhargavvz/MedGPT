@@ -1,0 +1,152 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Medical VQA Dataset Schema",
+    "description": "Unified schema for medical VQA datasets",
+    "type": "object",
+    "required": [
+        "image",
+        "question",
+        "answer"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Unique identifier for the sample"
+        },
+        "image": {
+            "type": "string",
+            "description": "Path to the medical image file"
+        },
+        "question": {
+            "type": "string",
+            "description": "Question about the medical image"
+        },
+        "answer": {
+            "type": "string",
+            "description": "Ground truth answer to the question"
+        },
+        "modality": {
+            "type": "string",
+            "enum": [
+                "CT",
+                "MRI",
+                "X-ray",
+                "Ultrasound",
+                "Pathology",
+                "Other"
+            ],
+            "description": "Imaging modality"
+        },
+        "organ": {
+            "type": "string",
+            "description": "Organ or body part in the image",
+            "examples": [
+                "lung",
+                "brain",
+                "heart",
+                "chest",
+                "abdomen"
+            ]
+        },
+        "disease": {
+            "type": "string",
+            "description": "Disease or condition if applicable",
+            "examples": [
+                "pneumonia",
+                "tumor",
+                "fracture",
+                "normal"
+            ]
+        },
+        "question_type": {
+            "type": "string",
+            "enum": [
+                "yes_no",
+                "what",
+                "where",
+                "how_many",
+                "other"
+            ],
+            "description": "Type of question"
+        },
+        "answer_type": {
+            "type": "string",
+            "enum": [
+                "closed",
+                "open"
+            ],
+            "description": "Whether answer is from closed set or open-ended"
+        },
+        "knowledge_snippet": {
+            "type": "string",
+            "description": "Retrieved medical knowledge relevant to the question"
+        },
+        "knowledge_concepts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "cui": {
+                        "type": "string",
+                        "description": "UMLS Concept Unique Identifier"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Concept name"
+                    },
+                    "definition": {
+                        "type": "string",
+                        "description": "Concept definition"
+                    },
+                    "semantic_type": {
+                        "type": "string",
+                        "description": "UMLS semantic type"
+                    }
+                }
+            },
+            "description": "Extracted medical concepts with definitions"
+        },
+        "source_dataset": {
+            "type": "string",
+            "enum": [
+                "VQA-RAD",
+                "SLAKE",
+                "PathVQA",
+                "MedVQA",
+                "ROCO"
+            ],
+            "description": "Original dataset source"
+        },
+        "split": {
+            "type": "string",
+            "enum": [
+                "train",
+                "val",
+                "test"
+            ],
+            "description": "Data split"
+        },
+        "rationale": {
+            "type": "string",
+            "description": "Explanation or rationale for the answer (if available)"
+        },
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "original_id": {
+                    "type": "string",
+                    "description": "ID from original dataset"
+                },
+                "patient_id": {
+                    "type": "string",
+                    "description": "Anonymized patient ID"
+                },
+                "study_id": {
+                    "type": "string",
+                    "description": "Study identifier"
+                }
+            },
+            "description": "Additional metadata"
+        }
+    }
+}
