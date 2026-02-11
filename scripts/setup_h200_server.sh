@@ -98,6 +98,11 @@ if ! command -v conda &> /dev/null; then
     rm /tmp/miniconda.sh
 fi
 
+# Accept conda Terms of Service (required in newer conda versions)
+log_info "Accepting conda Terms of Service..."
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+
 # Create conda environment
 if conda info --envs | grep -q "$CONDA_ENV"; then
     log_warn "Conda environment '${CONDA_ENV}' already exists. Activating..."
