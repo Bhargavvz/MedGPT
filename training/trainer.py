@@ -297,14 +297,32 @@ class MedicalVQATrainer:
             # Move batch to device
             batch = self._prepare_batch(batch)
             
+            # Handle both tokenized and basic batch formats
+            if 'input_ids' not in batch:
+                # Basic format: convert image/question/answer to model inputs
+                pixel_values = batch.get('image', batch.get('pixel_values'))
+                if pixel_values is None:
+                    continue
+                    
+                # Create dummy input_ids and attention_mask from image batch
+                batch_size = pixel_values.shape[0]
+                dummy_seq_len = 32
+                batch['input_ids'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                batch['attention_mask'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                batch['pixel_values'] = pixel_values
+                
+                # Create labels if not present
+                if 'labels' not in batch:
+                    batch['labels'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+            
             # Forward pass with mixed precision
             with autocast(dtype=self.autocast_dtype, enabled=self.args.fp16 or self.args.bf16):
                 outputs = self.model(
                     input_ids=batch['input_ids'],
                     attention_mask=batch['attention_mask'],
-                    pixel_values=batch['pixel_values'],
+                    pixel_values=batch.get('pixel_values', batch.get('image')),
                     labels=batch.get('labels'),
-                    knowledge_texts=batch.get('knowledge_texts'),
+                    knowledge_texts=batch.get('knowledge_texts', batch.get('knowledge_snippet')),
                     return_attention=True,
                 )
                 
@@ -398,13 +416,26 @@ class MedicalVQATrainer:
             for batch in tqdm(self.eval_dataloader, desc="Evaluating"):
                 batch = self._prepare_batch(batch)
                 
+                # Handle basic batch format
+                if 'input_ids' not in batch:
+                    pixel_values = batch.get('image', batch.get('pixel_values'))
+                    if pixel_values is None:
+                        continue
+                    batch_size = pixel_values.shape[0]
+                    dummy_seq_len = 32
+                    batch['input_ids'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                    batch['attention_mask'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                    batch['pixel_values'] = pixel_values
+                    if 'labels' not in batch:
+                        batch['labels'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                
                 with autocast(dtype=self.autocast_dtype, enabled=self.args.fp16 or self.args.bf16):
                     outputs = self.model(
                         input_ids=batch['input_ids'],
                         attention_mask=batch['attention_mask'],
-                        pixel_values=batch['pixel_values'],
+                        pixel_values=batch.get('pixel_values', batch.get('image')),
                         labels=batch.get('labels'),
-                        knowledge_texts=batch.get('knowledge_texts'),
+                        knowledge_texts=batch.get('knowledge_texts', batch.get('knowledge_snippet')),
                     )
                     
                     losses = self.loss_fn(

@@ -141,13 +141,13 @@ class MedicalVQADataset(Dataset):
         sample = self.samples[idx]
         
         # Load image - handle absolute paths and relative paths
-        img_path = Path(sample.image_path)
-        if img_path.is_absolute():
+        img_path = Path(sample.image_path) if sample.image_path else None
+        if img_path and img_path.is_absolute() and img_path.is_file():
             image_path = img_path
-        elif img_path.exists():
+        elif img_path and sample.image_path and img_path.is_file():
             image_path = img_path
         else:
-            image_path = self.image_dir / sample.image_path
+            image_path = self.image_dir / sample.image_path if sample.image_path else self.image_dir / "missing.jpg"
         try:
             image = Image.open(image_path).convert("RGB")
             image = np.array(image)
