@@ -117,9 +117,10 @@ class MedicalVQADataset(Dataset):
         for item in data:
             # Handle different JSON formats
             if isinstance(item, dict):
-                samples.append(VQASample(
+                img_val = item.get('image', item.get('image_path', ''))
+                sample = VQASample(
                     id=item.get('id', str(len(samples))),
-                    image_path=item.get('image', item.get('image_path', '')),
+                    image_path=img_val,
                     question=item.get('question', ''),
                     answer=item.get('answer', ''),
                     modality=item.get('modality', 'Unknown'),
@@ -130,7 +131,15 @@ class MedicalVQADataset(Dataset):
                     knowledge_snippet=item.get('knowledge_snippet', ''),
                     source_dataset=item.get('source_dataset', ''),
                     split=item.get('split', self.split)
-                ))
+                )
+                samples.append(sample)
+                # Debug: log first few samples
+                if len(samples) <= 3:
+                    logger.info(f"Sample {len(samples)}: image_path='{sample.image_path}', json_image='{img_val}'")
+        
+        # Log summary of image paths
+        non_empty = sum(1 for s in samples if s.image_path)
+        logger.info(f"Samples with non-empty image_path: {non_empty}/{len(samples)}")
         
         return samples
     
@@ -140,16 +149,24 @@ class MedicalVQADataset(Dataset):
     def __getitem__(self, idx: int) -> Dict:
         sample = self.samples[idx]
         
+        # Debug: log first sample's image_path to trace issues
+        if idx == 0:
+            logger.info(f"__getitem__(0): sample.image_path='{sample.image_path}', image_dir='{self.image_dir}'")
+        
         # Load image - paths in JSON are relative to image_dir
         if sample.image_path:
             image_path = self.image_dir / sample.image_path
         else:
+            logger.warning(f"Empty image_path for sample {sample.id} (idx={idx})")
             image_path = None
         try:
+            if image_path is None:
+                raise FileNotFoundError(f"No image path for sample {sample.id}")
             image = Image.open(image_path).convert("RGB")
             image = np.array(image)
         except Exception as e:
-            logger.warning(f"Error loading image {image_path}: {e}")
+            if idx < 3:  # Only log first few to avoid spam
+                logger.warning(f"Error loading image {image_path}: {e}")
             # Return blank image
             image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         
