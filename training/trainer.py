@@ -495,10 +495,35 @@ class MedicalVQATrainer:
                     
                     total_loss += losses['total_loss'].item()
                 
-                # Get predictions
-                predictions = outputs['logits'].argmax(dim=-1)
-                all_predictions.extend(predictions.cpu().tolist())
-                all_labels.extend(batch['labels'].cpu().tolist())
+                # Get predictions - decode to text for proper metric computation
+                pred_ids = outputs['logits'].argmax(dim=-1)  # [B, L]
+                label_ids = batch['labels']  # [B, L]
+                
+                # Decode each sample's answer portion
+                tokenizer = getattr(self.model, 'tokenizer', None)
+                
+                for i in range(pred_ids.shape[0]):
+                    pred_seq = pred_ids[i].cpu()
+                    label_seq = label_ids[i].cpu()
+                    
+                    # Find answer portion (where labels != -100)
+                    answer_mask = label_seq != -100
+                    
+                    if answer_mask.any() and tokenizer is not None:
+                        # Get the predicted tokens at answer positions
+                        pred_answer_ids = pred_seq[answer_mask].tolist()
+                        label_answer_ids = label_seq[answer_mask].tolist()
+                        
+                        # Decode to text
+                        pred_text = tokenizer.decode(pred_answer_ids, skip_special_tokens=True).strip()
+                        label_text = tokenizer.decode(label_answer_ids, skip_special_tokens=True).strip()
+                    else:
+                        # Fallback: convert to string
+                        pred_text = str(pred_seq.tolist())
+                        label_text = str(label_seq.tolist())
+                    
+                    all_predictions.append(pred_text)
+                    all_labels.append(label_text)
         
         # Compute metrics
         metrics = {
@@ -509,11 +534,17 @@ class MedicalVQATrainer:
             custom_metrics = self.compute_metrics(all_predictions, all_labels)
             metrics.update(custom_metrics)
         else:
-            # Default accuracy
+            # Default accuracy (text comparison)
             correct = sum(1 for p, l in zip(all_predictions, all_labels) 
-                         if p == l and l != -100)
-            total = sum(1 for l in all_labels if l != -100)
+                         if p.strip().lower() == l.strip().lower())
+            total = len(all_predictions)
             metrics['accuracy'] = correct / max(total, 1)
+        
+        # Log a few sample predictions for debugging
+        if all_predictions:
+            num_samples = min(3, len(all_predictions))
+            for i in range(num_samples):
+                logger.info(f"  Sample {i}: pred='{all_predictions[i][:80]}' | ref='{all_labels[i][:80]}'")
         
         logger.info(f"Eval metrics: {metrics}")
         
