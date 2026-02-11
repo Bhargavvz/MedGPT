@@ -32,6 +32,11 @@ class ModelConfig:
     
     generate_rationale: bool = True
     max_rationale_length: int = 128
+    
+    # H200 optimizations
+    use_flash_attention: bool = False
+    torch_compile: bool = False
+    use_sdpa: bool = False
 
 
 @dataclass
@@ -85,6 +90,11 @@ class TrainingConfig:
     gradient_checkpointing: bool = True
     dataloader_num_workers: int = 4
     dataloader_pin_memory: bool = True
+    dataloader_persistent_workers: bool = False
+    dataloader_prefetch_factor: int = 2
+    
+    # Effective batch size (informational)
+    effective_batch_size: Optional[int] = None
     
     freeze_vision_encoder: bool = True
     unfreeze_vision_epoch: int = 3
@@ -225,6 +235,13 @@ class WebAppConfig:
 
 
 @dataclass
+class HumanEvalConfig:
+    """Human evaluation configuration."""
+    enabled: bool = False
+    num_samples: int = 100
+
+
+@dataclass
 class EvaluationConfig:
     """Evaluation configuration."""
     metrics: List[str] = field(default_factory=lambda: [
@@ -232,6 +249,7 @@ class EvaluationConfig:
     ])
     human_eval_enabled: bool = False
     human_eval_num_samples: int = 100
+    human_eval: HumanEvalConfig = field(default_factory=HumanEvalConfig)
 
 
 @dataclass
