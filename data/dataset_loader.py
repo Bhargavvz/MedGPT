@@ -236,15 +236,47 @@ class MedicalVQADataset(Dataset):
                 'question_type': sample.question_type,
             }
         else:
-            # Return basic format
+            # Tokenize question and answer using text_processor
+            tokenizer = self.text_processor.tokenizer
+            
+            # Build prompt: "Question: {question}\nAnswer: {answer}"
+            prompt = f"Question: {question}\nAnswer:"
+            full_text = f"{prompt} {answer}"
+            
+            # Tokenize full text
+            encoded = tokenizer(
+                full_text,
+                max_length=self.max_question_length + self.max_answer_length,
+                padding='max_length',
+                truncation=True,
+                return_tensors='pt'
+            )
+            
+            input_ids = encoded['input_ids'].squeeze(0)
+            attention_mask = encoded['attention_mask'].squeeze(0)
+            
+            # Create labels: mask the prompt portion with -100, keep answer portion
+            prompt_encoded = tokenizer(
+                prompt,
+                max_length=self.max_question_length + self.max_answer_length,
+                truncation=True,
+                return_tensors='pt'
+            )
+            prompt_len = prompt_encoded['input_ids'].shape[1]
+            
+            labels = input_ids.clone()
+            labels[:prompt_len] = -100  # Mask prompt tokens
+            labels[attention_mask == 0] = -100  # Mask padding tokens
+            
             return {
-                'id': sample.id,
-                'image': image_tensor,
-                'question': question,
-                'answer': answer,
+                'input_ids': input_ids,
+                'attention_mask': attention_mask,
+                'pixel_values': image_tensor,
+                'labels': labels,
                 'knowledge_snippet': knowledge_snippet,
-                'modality': sample.modality,
+                'id': sample.id,
                 'question_type': sample.question_type,
+                'modality': sample.modality,
             }
     
     def _format_prompt(self, question: str, knowledge: str = "") -> str:

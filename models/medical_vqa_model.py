@@ -237,27 +237,43 @@ class MedicalVQAModel(nn.Module):
             logger.info("Loading fallback model for development")
             
             # Fallback for development/testing
-            from transformers import AutoConfig
+            vocab_size = 151936
+            hidden_size = 4096
             
-            config = AutoConfig.from_pretrained(
-                "Qwen/Qwen-7B",
-                trust_remote_code=True
+            # Build a proper lightweight LM head so output shape matches vocab_size
+            self.base_model = nn.Sequential(
+                nn.Linear(hidden_size, hidden_size),
+                nn.GELU(),
+                nn.LayerNorm(hidden_size),
+                nn.Linear(hidden_size, vocab_size),
             )
-            config.hidden_size = 4096
-            config.vocab_size = 151936
-            
-            self.base_model = nn.Linear(4096, 4096)  # Dummy for testing
             self.processor = None
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                "Qwen/Qwen-7B",
-                trust_remote_code=True
-            )
+            
+            # Try loading tokenizer
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    base_model_name,
+                    trust_remote_code=True
+                )
+            except Exception:
+                try:
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        "Qwen/Qwen-7B",
+                        trust_remote_code=True
+                    )
+                except Exception:
+                    self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
+            
+            logger.info(f"Fallback model: hidden_size={hidden_size}, vocab_size={vocab_size}")
+            logger.info(f"Tokenizer vocab size: {len(self.tokenizer)}")
             
             # Set config for hidden size access
             class DummyConfig:
-                hidden_size = 4096
-                vocab_size = 151936
-            self.base_model.config = DummyConfig()
+                pass
+            cfg = DummyConfig()
+            cfg.hidden_size = hidden_size
+            cfg.vocab_size = vocab_size
+            self.base_model.config = cfg
             return
         
         # Gradient checkpointing
@@ -402,7 +418,7 @@ class MedicalVQAModel(nn.Module):
         # For actual Qwen2-VL, we would use a more sophisticated integration
         # This is a simplified version for demonstration
         
-        if hasattr(self.base_model, 'forward') and not isinstance(self.base_model, nn.Linear):
+        if hasattr(self.base_model, 'forward') and not isinstance(self.base_model, nn.Sequential):
             # Full model forward
             outputs = self.base_model(
                 inputs_embeds=projected_features,
@@ -413,13 +429,18 @@ class MedicalVQAModel(nn.Module):
             loss = outputs.loss if labels is not None else None
             logits = outputs.logits
         else:
-            # Dummy forward for testing
+            # Fallback forward - pass through the sequential model
             logits = self.base_model(projected_features)
             loss = None
             if labels is not None:
+                # Ensure labels don't exceed vocab size
+                vocab_size = logits.size(-1)
+                valid_labels = labels.clone()
+                valid_labels[valid_labels >= vocab_size] = -100
+                valid_labels[valid_labels < 0] = -100
                 loss = F.cross_entropy(
-                    logits.view(-1, logits.size(-1)),
-                    labels.view(-1),
+                    logits.view(-1, vocab_size),
+                    valid_labels.view(-1),
                     ignore_index=-100
                 )
         
@@ -491,7 +512,7 @@ class MedicalVQAModel(nn.Module):
         fused_features = outputs['fused_features']
         
         # Generate answer using base model
-        if hasattr(self.base_model, 'generate') and not isinstance(self.base_model, nn.Linear):
+        if hasattr(self.base_model, 'generate') and not isinstance(self.base_model, nn.Sequential):
             projected_features = self.feature_projector(fused_features)
             
             generated = self.base_model.generate(

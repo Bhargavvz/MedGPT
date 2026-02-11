@@ -299,30 +299,56 @@ class MedicalVQATrainer:
             
             # Handle both tokenized and basic batch formats
             if 'input_ids' not in batch:
-                # Basic format: convert image/question/answer to model inputs
+                # Dataset should provide tokenized data, but handle legacy format
                 pixel_values = batch.get('image', batch.get('pixel_values'))
                 if pixel_values is None:
                     continue
                     
-                # Create dummy input_ids and attention_mask from image batch
+                # Use model's tokenizer to create proper inputs
                 batch_size = pixel_values.shape[0]
-                dummy_seq_len = 32
-                batch['input_ids'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
-                batch['attention_mask'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                seq_len = 64
+                
+                # If we have the model's tokenizer, encode a placeholder
+                if hasattr(self.model, 'tokenizer') and self.model.tokenizer is not None:
+                    tokenizer = self.model.tokenizer
+                    placeholder = "What is shown in this medical image?"
+                    encoded = tokenizer(
+                        [placeholder] * batch_size,
+                        max_length=seq_len,
+                        padding='max_length',
+                        truncation=True,
+                        return_tensors='pt'
+                    )
+                    batch['input_ids'] = encoded['input_ids'].to(self.device)
+                    batch['attention_mask'] = encoded['attention_mask'].to(self.device)
+                else:
+                    batch['input_ids'] = torch.ones(batch_size, seq_len, dtype=torch.long, device=self.device)
+                    batch['attention_mask'] = torch.ones(batch_size, seq_len, dtype=torch.long, device=self.device)
+                
                 batch['pixel_values'] = pixel_values
                 
                 # Create labels if not present
                 if 'labels' not in batch:
-                    batch['labels'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                    batch['labels'] = batch['input_ids'].clone()
             
             # Forward pass with mixed precision
             with autocast(dtype=self.autocast_dtype, enabled=self.args.fp16 or self.args.bf16):
+                # Handle knowledge_snippet - could be a list of strings from batch collation
+                knowledge = batch.get('knowledge_texts', batch.get('knowledge_snippet'))
+                if isinstance(knowledge, (list, tuple)) and len(knowledge) > 0:
+                    # Filter out empty strings
+                    knowledge = [k for k in knowledge if k] or None
+                elif isinstance(knowledge, str):
+                    knowledge = [knowledge] if knowledge else None
+                else:
+                    knowledge = None
+                
                 outputs = self.model(
                     input_ids=batch['input_ids'],
                     attention_mask=batch['attention_mask'],
                     pixel_values=batch.get('pixel_values', batch.get('image')),
                     labels=batch.get('labels'),
-                    knowledge_texts=batch.get('knowledge_texts', batch.get('knowledge_snippet')),
+                    knowledge_texts=knowledge,
                     return_attention=True,
                 )
                 
@@ -416,26 +442,50 @@ class MedicalVQATrainer:
             for batch in tqdm(self.eval_dataloader, desc="Evaluating"):
                 batch = self._prepare_batch(batch)
                 
-                # Handle basic batch format
+                # Handle basic batch format (legacy)
                 if 'input_ids' not in batch:
                     pixel_values = batch.get('image', batch.get('pixel_values'))
                     if pixel_values is None:
                         continue
                     batch_size = pixel_values.shape[0]
-                    dummy_seq_len = 32
-                    batch['input_ids'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
-                    batch['attention_mask'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                    seq_len = 64
+                    
+                    if hasattr(self.model, 'tokenizer') and self.model.tokenizer is not None:
+                        tokenizer = self.model.tokenizer
+                        placeholder = "What is shown in this medical image?"
+                        encoded = tokenizer(
+                            [placeholder] * batch_size,
+                            max_length=seq_len,
+                            padding='max_length',
+                            truncation=True,
+                            return_tensors='pt'
+                        )
+                        batch['input_ids'] = encoded['input_ids'].to(self.device)
+                        batch['attention_mask'] = encoded['attention_mask'].to(self.device)
+                    else:
+                        batch['input_ids'] = torch.ones(batch_size, seq_len, dtype=torch.long, device=self.device)
+                        batch['attention_mask'] = torch.ones(batch_size, seq_len, dtype=torch.long, device=self.device)
+                    
                     batch['pixel_values'] = pixel_values
                     if 'labels' not in batch:
-                        batch['labels'] = torch.ones(batch_size, dummy_seq_len, dtype=torch.long, device=self.device)
+                        batch['labels'] = batch['input_ids'].clone()
                 
                 with autocast(dtype=self.autocast_dtype, enabled=self.args.fp16 or self.args.bf16):
+                    # Handle knowledge
+                    knowledge = batch.get('knowledge_texts', batch.get('knowledge_snippet'))
+                    if isinstance(knowledge, (list, tuple)) and len(knowledge) > 0:
+                        knowledge = [k for k in knowledge if k] or None
+                    elif isinstance(knowledge, str):
+                        knowledge = [knowledge] if knowledge else None
+                    else:
+                        knowledge = None
+                    
                     outputs = self.model(
                         input_ids=batch['input_ids'],
                         attention_mask=batch['attention_mask'],
                         pixel_values=batch.get('pixel_values', batch.get('image')),
                         labels=batch.get('labels'),
-                        knowledge_texts=batch.get('knowledge_texts', batch.get('knowledge_snippet')),
+                        knowledge_texts=knowledge,
                     )
                     
                     losses = self.loss_fn(
