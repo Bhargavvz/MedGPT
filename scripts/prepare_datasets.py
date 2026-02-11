@@ -336,8 +336,12 @@ def main():
         return
 
     # Filter out samples without images
-    valid = [s for s in all_samples if s["image"] and os.path.exists(s["image"])]
+    abs_raw = os.path.abspath(args.raw_dir)
+    valid = [s for s in all_samples if s["image"] and os.path.exists(os.path.join(abs_raw, s["image"]))]
+    no_image = sum(1 for s in all_samples if not s["image"])
     print(f"  Samples with valid images: {len(valid)}")
+    print(f"  Samples with no image path: {no_image}")
+    print(f"  Samples with image path but file missing: {len(all_samples) - len(valid) - no_image}")
     
     if not valid:
         print("  ⚠ No valid images found. Using all samples (images may need downloading)")
