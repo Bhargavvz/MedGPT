@@ -1,0 +1,245 @@
+# ============================================================================
+# Medical VQA Configuration - H200 GPU Optimized
+# Knowledge-Guided Explainable Transformer
+# ============================================================================
+# GPU: NVIDIA H200 (141GB HBM3e, 4.8 TB/s bandwidth)
+# RAM: 1.9 TB System Memory
+# Optimizations: bf16, Flash Attention 2, No quantization, Large batch sizes
+# ============================================================================
+
+# Model Configuration
+model:
+  # Base Vision-Language Model (load in FULL bf16, no quantization needed)
+  base_model: "Qwen/Qwen2-VL-7B-Instruct"
+  vision_encoder: "openai/clip-vit-large-patch14"
+
+  # Knowledge Encoder
+  knowledge_encoder: "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
+
+  # Model dimensions
+  hidden_size: 4096
+  vision_hidden_size: 1024
+  knowledge_hidden_size: 768
+  fusion_hidden_size: 1024
+  num_attention_heads: 16
+
+  # Fusion settings
+  fusion_type: "cross_attention"
+  num_fusion_layers: 2
+
+  # Knowledge gating
+  use_knowledge_gating: true
+  gating_temperature: 1.0
+
+  # Explanation head
+  generate_rationale: true
+  max_rationale_length: 256  # H200: can afford longer rationales
+
+  # H200 Optimizations
+  use_flash_attention: true      # Flash Attention 2 for H200
+  torch_compile: true            # torch.compile for kernel fusion
+  use_sdpa: true                 # Scaled Dot Product Attention
+
+# LoRA Configuration
+# H200 has 141GB VRAM: We can use LoRA with higher rank OR full fine-tune
+lora:
+  enabled: true
+  r: 128                         # Higher rank for H200 (was 64)
+  lora_alpha: 256                # Alpha = 2 * r
+  lora_dropout: 0.05             # Lower dropout with more VRAM
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Quantization - DISABLED for H200 (141GB VRAM can hold full bf16)
+quantization:
+  enabled: false
+  load_in_4bit: false
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: false
+
+# Training Configuration - H200 Optimized
+training:
+  output_dir: "./checkpoints"
+  num_epochs: 15
+  batch_size: 32                     # H200: 2x larger batch (was 16)
+  gradient_accumulation_steps: 2     # H200: fewer steps needed (was 4)
+  effective_batch_size: 64
+
+  # Optimizer
+  optimizer: "adamw"
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  max_grad_norm: 1.0
+
+  # Scheduler
+  scheduler: "cosine"
+  warmup_ratio: 0.1
+  min_lr_ratio: 0.1
+
+  # Mixed Precision - H200: Use bf16 (native hardware support)
+  fp16: false                        # DISABLED: bf16 is superior on H200
+  bf16: true                         # ENABLED: native H200 support
+
+  # Efficiency
+  gradient_checkpointing: false      # H200: enough VRAM, disable for speed
+  dataloader_num_workers: 16         # H200: more CPU workers (was 4)
+  dataloader_pin_memory: true
+  dataloader_persistent_workers: true
+  dataloader_prefetch_factor: 4      # Prefetch more batches
+
+  # Vision encoder freezing
+  freeze_vision_encoder: true
+  unfreeze_vision_epoch: 3
+
+  # Checkpointing
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 5               # H200: keep more checkpoints
+
+  # Logging
+  logging_steps: 10
+  logging_dir: "./logs"
+  report_to: ["tensorboard", "wandb"]
+
+  # Evaluation
+  eval_strategy: "steps"
+  eval_steps: 500
+
+  # Resume
+  resume_from_checkpoint: null
+
+# Loss weights
+loss:
+  answer_loss_weight: 1.0
+  attention_alignment_weight: 0.1
+  knowledge_grounding_weight: 0.2
+  rationale_generation_weight: 0.3
+
+# Data Configuration
+data:
+  # Dataset paths
+  train_file: "./data/processed/train.json"
+  val_file: "./data/processed/val.json"
+  test_file: "./data/processed/test.json"
+
+  # Raw data directories
+  raw_data_dir: "./data/raw"
+  processed_data_dir: "./data/processed"
+
+  # Image settings - H200: Higher resolution
+  image_size: 448                    # Higher res (was 224)
+  image_mean: [0.485, 0.456, 0.406]
+  image_std: [0.229, 0.224, 0.225]
+
+  # Text settings
+  max_question_length: 128
+  max_answer_length: 512             # Longer answers (was 256)
+  max_knowledge_length: 512          # More knowledge context (was 256)
+
+  # Data splits
+  train_split: 0.70
+  val_split: 0.15
+  test_split: 0.15
+
+  # Augmentation
+  use_augmentation: true
+  augmentation:
+    horizontal_flip_prob: 0.5
+    rotation_limit: 15
+    brightness_limit: 0.2
+    contrast_limit: 0.2
+    gaussian_noise_var_limit: [10, 50]
+
+# Knowledge Configuration
+knowledge:
+  umls_api_key: null  # Set via environment variable UMLS_API_KEY
+
+  use_scispacy: true
+  scispacy_model: "en_core_sci_lg"
+
+  top_k_concepts: 10                # More concepts (was 5)
+  max_definition_length: 200        # Longer defs (was 100)
+
+  sources:
+    - "UMLS"
+    - "RadLex"
+    - "SNOMED-CT"
+
+# Explainability Configuration
+explainability:
+  grad_cam:
+    enabled: true
+    target_layer: "vision_encoder.encoder.layers[-1]"
+
+  attention_rollout:
+    enabled: true
+    head_fusion: "mean"
+    discard_ratio: 0.9
+
+  integrated_gradients:
+    enabled: true
+    n_steps: 100                     # More steps for accuracy (was 50)
+    internal_batch_size: 32          # Larger int. batch (was 16)
+
+  rationale:
+    enabled: true
+    max_length: 256                  # Longer rationales (was 128)
+    temperature: 0.7
+    top_p: 0.9
+
+# Inference Configuration
+inference:
+  model_path: "./checkpoints/best_model"
+  device: "cuda"
+  batch_size: 8                      # Batch inference (was 1)
+  max_new_tokens: 512                # Longer generation (was 256)
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: false
+
+  generate_heatmap: true
+  generate_rationale: true
+
+# Web Application Configuration
+webapp:
+  host: "0.0.0.0"
+  port: 8000
+  max_upload_size_mb: 100            # Larger uploads (was 50)
+  allowed_extensions:
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".dcm"
+    - ".nii"
+    - ".nii.gz"
+  cors_origins:
+    - "*"
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "bleu"
+    - "rouge_l"
+    - "f1"
+    - "exact_match"
+  human_eval:
+    enabled: false
+    num_samples: 100
+
+# DeepSpeed Configuration - H200 Optimized
+deepspeed:
+  enabled: true
+  config_file: "./training/deepspeed_h200.json"

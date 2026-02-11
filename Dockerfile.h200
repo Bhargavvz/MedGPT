@@ -1,0 +1,100 @@
+# ============================================================================
+# Medical VQA - H200 GPU Optimized Dockerfile
+# NVIDIA H200 (141GB HBM3e) + CUDA 12.4
+# ============================================================================
+
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+# Build arguments
+ARG PYTHON_VERSION=3.10
+ARG PYTORCH_VERSION=2.4.0
+ARG FLASH_ATTN_VERSION=2.6.3
+
+# Environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV TORCH_CUDA_ARCH_LIST="9.0"
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="${CUDA_HOME}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+
+# H200 Performance Settings
+ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+ENV TOKENIZERS_PARALLELISM=true
+ENV OMP_NUM_THREADS=16
+ENV MKL_NUM_THREADS=16
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python${PYTHON_VERSION} \
+    python${PYTHON_VERSION}-dev \
+    python3-pip \
+    python${PYTHON_VERSION}-venv \
+    git \
+    git-lfs \
+    curl \
+    wget \
+    build-essential \
+    cmake \
+    ninja-build \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libjpeg-dev \
+    libpng-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && git lfs install
+
+# Set Python alias
+RUN ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Working directory
+WORKDIR /app
+
+# Install PyTorch with CUDA 12.4 (H200)
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+# Install Flash Attention 2 (critical for H200 performance)
+RUN pip install flash-attn --no-build-isolation
+
+# Copy and install requirements
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Install additional H200-optimized packages
+RUN pip install xformers triton ninja packaging vllm gradio
+
+# Install SciSpacy medical NER models
+RUN pip install \
+    https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_lg-0.5.4.tar.gz \
+    https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/checkpoints /app/uploads /app/results /app/logs /app/models_cache
+
+# Default environment
+ENV MODEL_PATH=/app/checkpoints/best_model
+ENV DEVICE=cuda
+ENV HF_HOME=/app/models_cache
+ENV TRANSFORMERS_CACHE=/app/models_cache
+
+# Expose ports (API + Gradio)
+EXPOSE 8000 7860
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Default: run web application
+CMD ["python", "-m", "uvicorn", "webapp.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
