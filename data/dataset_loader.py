@@ -140,8 +140,14 @@ class MedicalVQADataset(Dataset):
     def __getitem__(self, idx: int) -> Dict:
         sample = self.samples[idx]
         
-        # Load image
-        image_path = self.image_dir / sample.image_path
+        # Load image - handle absolute paths and relative paths
+        img_path = Path(sample.image_path)
+        if img_path.is_absolute():
+            image_path = img_path
+        elif img_path.exists():
+            image_path = img_path
+        else:
+            image_path = self.image_dir / sample.image_path
         try:
             image = Image.open(image_path).convert("RGB")
             image = np.array(image)

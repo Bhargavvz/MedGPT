@@ -36,10 +36,24 @@ def classify_answer_type(answer: str) -> str:
         return "closed"
     return "open"
 
+def make_relative_path(full_path: str, raw_dir: str) -> str:
+    """Convert a full image path to be relative to raw_dir.
+    
+    E.g., /home/user/MedGPT/data/raw/pathvqa/images/img.jpg
+    becomes: pathvqa/images/img.jpg  (relative to data/raw/)
+    """
+    if not full_path:
+        return ""
+    try:
+        return os.path.relpath(full_path, raw_dir)
+    except ValueError:
+        return full_path
+
 def load_vqa_rad(raw_dir: str) -> list:
     """Load VQA-RAD dataset from HuggingFace cached format."""
     ds_dir = Path(raw_dir) / "vqa_rad"
     samples = []
+    abs_raw_dir = os.path.abspath(raw_dir)
 
     try:
         from datasets import load_from_disk, load_dataset
@@ -67,7 +81,8 @@ def load_vqa_rad(raw_dir: str) -> list:
                             item["image"].save(str(img_full_path), "JPEG")
                         except Exception:
                             pass
-                    img_path = str(img_full_path)
+                    # Store path relative to raw_dir
+                    img_path = make_relative_path(str(img_full_path), abs_raw_dir)
 
                 question = item.get("question", "")
                 answer = str(item.get("answer", ""))
@@ -123,6 +138,7 @@ def load_slake(raw_dir: str) -> list:
     """Load SLAKE dataset from HuggingFace cached format."""
     ds_dir = Path(raw_dir) / "slake"
     samples = []
+    abs_raw_dir = os.path.abspath(raw_dir)
 
     try:
         from datasets import load_from_disk, load_dataset
@@ -152,7 +168,8 @@ def load_slake(raw_dir: str) -> list:
                             item["image"].save(str(img_full_path), "JPEG")
                         except Exception:
                             pass
-                    img_path = str(img_full_path)
+                    # Store path relative to raw_dir
+                    img_path = make_relative_path(str(img_full_path), abs_raw_dir)
 
                 question = item.get("question", "")
                 answer = str(item.get("answer", ""))
@@ -187,6 +204,7 @@ def load_pathvqa(raw_dir: str) -> list:
     """Load PathVQA dataset from HuggingFace cached format."""
     ds_dir = Path(raw_dir) / "pathvqa"
     samples = []
+    abs_raw_dir = os.path.abspath(raw_dir)
 
     try:
         from datasets import load_from_disk, load_dataset
@@ -211,7 +229,8 @@ def load_pathvqa(raw_dir: str) -> list:
                             item["image"].save(str(img_full_path), "JPEG")
                         except Exception:
                             pass
-                    img_path = str(img_full_path)
+                    # Store path relative to raw_dir
+                    img_path = make_relative_path(str(img_full_path), abs_raw_dir)
 
                 question = item.get("question", "")
                 answer = str(item.get("answer", ""))
