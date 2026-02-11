@@ -33,7 +33,7 @@ def check_gpu():
     print("-" * 40)
     print(f"   Name:           {props.name}")
     print(f"   Compute Cap:    {props.major}.{props.minor}")
-    print(f"   Total Memory:   {props.total_mem / 1e9:.1f} GB")
+    print(f"   Total Memory:   {props.total_memory / 1e9:.1f} GB")
     print(f"   SMs:            {props.multi_processor_count}")
     print(f"   CUDA Version:   {torch.version.cuda}")
     print(f"   PyTorch:        {torch.__version__}")
@@ -294,7 +294,7 @@ def estimate_training_time():
         return
 
     props = torch.cuda.get_device_properties(0)
-    vram_gb = props.total_mem / 1e9
+    vram_gb = props.total_memory / 1e9
 
     # Estimates based on H200 benchmarks
     datasets = {
