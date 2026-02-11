@@ -213,6 +213,8 @@ def check_dependencies():
             installed += 1
         except ImportError:
             print(f"   ✗ {name:20s} NOT INSTALLED")
+        except Exception as e:
+            print(f"   ⚠ {name:20s} IMPORT ERROR ({type(e).__name__})")
 
     print(f"\n   {installed}/{len(packages)} packages installed")
     print()
