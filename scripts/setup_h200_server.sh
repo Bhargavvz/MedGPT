@@ -145,12 +145,20 @@ log_info "PyTorch installed with CUDA support."
 # ============================================================================
 log_step "Step 4: Installing Flash Attention 2"
 
-pip install flash-attn --no-build-isolation
+# Install build dependencies required by flash-attn
+pip install psutil ninja packaging
+
+# Try installing flash-attn (source build), fallback to pre-built wheel
+pip install flash-attn --no-build-isolation || {
+    log_warn "Source build failed. Trying pre-built wheel..."
+    pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4/flash_attn-2.7.4+cu124torch2.6-cp310-cp310-linux_x86_64.whl || \
+    log_warn "Pre-built wheel also failed. Continuing without Flash Attention."
+}
 
 python -c "
 import flash_attn
 print(f'Flash Attention Version: {flash_attn.__version__}')
-" && log_info "Flash Attention 2 installed." || log_warn "Flash Attention install may need manual build."
+" && log_info "Flash Attention 2 installed." || log_warn "Flash Attention not available. Training will use standard attention."
 
 # ============================================================================
 # Step 5: Install Project Dependencies
