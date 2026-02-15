@@ -148,8 +148,8 @@ log_step "Step 4: Installing Flash Attention 2"
 # Install build dependencies required by flash-attn
 pip install psutil ninja packaging
 
-# Try installing flash-attn (source build), fallback to pre-built wheel
-pip install flash-attn --no-build-isolation || {
+# Pin flash-attn to 2.7.4 (2.8.x has ABI mismatch with PyTorch 2.6.0)
+pip install "flash-attn==2.7.4" --no-build-isolation || {
     log_warn "Source build failed. Trying pre-built wheel..."
     pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4/flash_attn-2.7.4+cu124torch2.6-cp310-cp310-linux_x86_64.whl || \
     log_warn "Pre-built wheel also failed. Continuing without Flash Attention."
@@ -166,9 +166,13 @@ print(f'Flash Attention Version: {flash_attn.__version__}')
 log_step "Step 5: Installing Project Dependencies"
 
 # Clone or navigate to project
-if [ ! -d "$PROJECT_DIR" ]; then
-    log_info "Creating project directory..."
-    mkdir -p "$PROJECT_DIR"
+if [ ! -d "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
+    log_info "Cloning MedGPT repository..."
+    if [ -d "$PROJECT_DIR" ] && [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
+        # Directory exists but is empty/incomplete - clone into it
+        rmdir "$PROJECT_DIR" 2>/dev/null || true
+    fi
+    git clone https://github.com/Bhargavvz/MedGPT.git "$PROJECT_DIR"
 fi
 cd "$PROJECT_DIR"
 
